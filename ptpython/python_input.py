@@ -5,7 +5,6 @@ This can be used for creation of Python REPLs.
 from __future__ import unicode_literals
 
 from prompt_toolkit.application import Application, get_app
-#from prompt_toolkit.application.run_in_terminal import run_coroutine_in_terminal
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory, ConditionalAutoSuggest, ThreadedAutoSuggest
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.key_binding.bindings.auto_suggest import load_auto_suggest_bindings
@@ -708,14 +707,29 @@ class PythonInput(object):
         app = get_app()
         app.vi_state.input_mode = InputMode.NAVIGATION
 
-        def done(f):
-            result = f.result()
-            if result is not None:
-                self.default_buffer.text = result
-
-            app.vi_state.input_mode = InputMode.INSERT
-
         history = History(self, self.default_buffer.document)
 
-        future = run_coroutine_in_terminal(history.app.run_async)
-        future.add_done_callback(done)
+        if IS_PTK3:
+            from prompt_toolkit.application import in_terminal
+            import asyncio
+            async def do_in_terminal():
+                async with in_terminal():
+                    result = await history.app.run_async()
+                    if result is not None:
+                        self.default_buffer.text = result
+
+                    app.vi_state.input_mode = InputMode.INSERT
+
+            asyncio.ensure_future(do_in_terminal())
+        else:
+            from prompt_toolkit.application.run_in_terminal import run_coroutine_in_terminal
+
+            def done(f):
+                result = f.result()
+                if result is not None:
+                    self.default_buffer.text = result
+
+                app.vi_state.input_mode = InputMode.INSERT
+
+            future = run_coroutine_in_terminal(history.app.run_async)
+            future.add_done_callback(done)
